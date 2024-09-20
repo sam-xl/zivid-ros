@@ -5,6 +5,7 @@
 
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/Image.h>
+#include <std_srvs/Empty.h>
 
 #include <image_transport/image_transport.h>
 
@@ -42,8 +43,8 @@ private:
   bool cameraInfoModelNameServiceHandler(CameraInfoModelName::Request& req, CameraInfoModelName::Response& res);
   bool cameraInfoSerialNumberServiceHandler(CameraInfoSerialNumber::Request& req,
                                             CameraInfoSerialNumber::Response& res);
-  bool captureServiceHandler(Capture::Request& req, Capture::Response& res);
-  bool capture2DServiceHandler(Capture2D::Request& req, Capture2D::Response& res);
+  bool captureServiceHandler(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res);
+  bool capture2DServiceHandler(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res);
   bool captureAssistantSuggestSettingsServiceHandler(CaptureAssistantSuggestSettings::Request& req,
                                                      CaptureAssistantSuggestSettings::Response& res);
   bool loadSettingsFromFileServiceHandler(LoadSettingsFromFile::Request& req, LoadSettingsFromFile::Response&);
