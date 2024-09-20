@@ -346,7 +346,7 @@ bool ZividCamera::cameraInfoSerialNumberServiceHandler(zivid_camera::CameraInfoS
   return true;
 }
 
-bool ZividCamera::captureServiceHandler(Capture::Request&, Capture::Response&)
+bool ZividCamera::captureServiceHandler(std_srvs::Empty::Request&, std_srvs::Empty::Response&)
 {
   ROS_DEBUG_STREAM(__func__);
 
@@ -366,7 +366,7 @@ bool ZividCamera::captureAndSaveServiceHandler(CaptureAndSave::Request& req, Cap
   return true;
 }
 
-bool ZividCamera::capture2DServiceHandler(Capture2D::Request&, Capture2D::Response&)
+bool ZividCamera::capture2DServiceHandler(std_srvs::Empty::Request&, std_srvs::Empty::Response&)
 {
   ROS_DEBUG_STREAM(__func__);
 
