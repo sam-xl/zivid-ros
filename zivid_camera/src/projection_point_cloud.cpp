@@ -30,6 +30,7 @@
 #include <array>
 #include <cmath>
 #include <cstring>
+#include <limits>
 #include <stdexcept>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <zivid_camera/projection_point_cloud.hpp>
@@ -84,6 +85,78 @@ double readCoordinate(const uint8_t * point, const PointField & field, bool big_
   return field.datatype == PointField::FLOAT32 ? readValue<float>(data, big_endian)
                                                : readValue<double>(data, big_endian);
 }
+
+void validateIntensityField(const PointField & field, uint32_t point_step)
+{
+  size_t size = 0;
+  switch (field.datatype) {
+    case PointField::INT8:
+    case PointField::UINT8:
+      size = 1;
+      break;
+    case PointField::INT16:
+    case PointField::UINT16:
+      size = 2;
+      break;
+    case PointField::INT32:
+    case PointField::UINT32:
+    case PointField::FLOAT32:
+      size = 4;
+      break;
+    case PointField::FLOAT64:
+      size = 8;
+      break;
+    default:
+      break;
+  }
+  if (
+    size == 0 || field.count != 1 || field.offset > point_step ||
+    size > point_step - field.offset) {
+    throw std::runtime_error("Invalid point cloud field: " + field.name);
+  }
+}
+
+double readIntensity(const uint8_t * point, const PointField & field, bool big_endian)
+{
+  const auto * data = point + field.offset;
+  switch (field.datatype) {
+    case PointField::INT8:
+      return readValue<int8_t>(data, big_endian);
+    case PointField::UINT8:
+      return readValue<uint8_t>(data, big_endian);
+    case PointField::INT16:
+      return readValue<int16_t>(data, big_endian);
+    case PointField::UINT16:
+      return readValue<uint16_t>(data, big_endian);
+    case PointField::INT32:
+      return readValue<int32_t>(data, big_endian);
+    case PointField::UINT32:
+      return readValue<uint32_t>(data, big_endian);
+    case PointField::FLOAT32:
+      return readValue<float>(data, big_endian);
+    case PointField::FLOAT64:
+      return readValue<double>(data, big_endian);
+    default:
+      throw std::runtime_error("Invalid point cloud field: " + field.name);
+  }
+}
+
+Zivid::ColorBGRA intensityColor(double intensity, double min_intensity, double max_intensity)
+{
+  if (!std::isfinite(intensity)) {
+    return Zivid::ColorBGRA{0, 0, 0, 255};
+  }
+  const auto fraction = min_intensity == max_intensity
+                          ? 0.5L
+                          : (static_cast<long double>(intensity) - min_intensity) /
+                              (static_cast<long double>(max_intensity) - min_intensity);
+  const auto channel = [](long double value) {
+    return static_cast<uint8_t>(std::lround(255 * std::clamp(value, 0.0L, 1.0L)));
+  };
+  const auto position = 4 * fraction;
+  return Zivid::ColorBGRA{
+    channel(2 - position), channel(std::min(position, 4 - position)), channel(position - 2), 255};
+}
 }  // namespace
 
 namespace zivid_camera
@@ -122,6 +195,10 @@ ProjectionPoints prepareProjectionPoints(
   if (color) {
     validateField(color, cloud.point_step, false);
   }
+  const auto * intensity = color ? nullptr : findField(cloud, "intensity");
+  if (intensity) {
+    validateIntensityField(*intensity, cloud.point_step);
+  }
   const auto row_size = static_cast<uint64_t>(cloud.width) * cloud.point_step;
   const auto data_size = static_cast<uint64_t>(cloud.height) * cloud.row_step;
   if (
@@ -131,6 +208,7 @@ ProjectionPoints prepareProjectionPoints(
   }
 
   ProjectionPoints result;
+  std::vector<double> intensities;
   for (size_t row = 0; row < cloud.height; ++row) {
     for (size_t col = 0; col < cloud.width; ++col) {
       const auto * point = cloud.data.data() + row * cloud.row_step + col * cloud.point_step;
@@ -151,15 +229,32 @@ ProjectionPoints prepareProjectionPoints(
         continue;
       }
       result.points.push_back(camera_point);
-      const uint32_t rgb =
-        color ? readValue<uint32_t>(point + color->offset, cloud.is_bigendian) : 0x00ffffff;
-      result.colors.emplace_back(
-        static_cast<uint8_t>(rgb & 0xff), static_cast<uint8_t>((rgb >> 8) & 0xff),
-        static_cast<uint8_t>((rgb >> 16) & 0xff), 255);
+      if (intensity) {
+        intensities.push_back(readIntensity(point, *intensity, cloud.is_bigendian));
+      } else {
+        const uint32_t rgb =
+          color ? readValue<uint32_t>(point + color->offset, cloud.is_bigendian) : 0x00ffffff;
+        result.colors.emplace_back(
+          static_cast<uint8_t>(rgb & 0xff), static_cast<uint8_t>((rgb >> 8) & 0xff),
+          static_cast<uint8_t>((rgb >> 16) & 0xff), 255);
+      }
     }
   }
   if (result.points.empty()) {
     throw std::runtime_error("Point cloud contains no finite points in front of the camera");
+  }
+  if (intensity) {
+    double min_intensity = std::numeric_limits<double>::infinity();
+    double max_intensity = -std::numeric_limits<double>::infinity();
+    for (const auto value : intensities) {
+      if (std::isfinite(value)) {
+        min_intensity = std::min(min_intensity, value);
+        max_intensity = std::max(max_intensity, value);
+      }
+    }
+    for (const auto value : intensities) {
+      result.colors.push_back(intensityColor(value, min_intensity, max_intensity));
+    }
   }
   return result;
 }

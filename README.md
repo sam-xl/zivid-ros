@@ -533,9 +533,12 @@ coordinates or behind the camera are ignored. A cloud with no remaining points i
 
 Each point maps to one projector pixel using the camera's calibrated SDK mapping. Packed `rgb` or
 `rgba` fields of type `FLOAT32` or `UINT32` supply the color (`rgba` takes precedence if both are
-present); otherwise points are white. Alpha is ignored. Points outside the projector image are
-skipped, the background is black, and the last point at a pixel wins. The normal projection status,
-stop, and capture behavior applies.
+present). Alpha is ignored. If neither field is present, a scalar numeric `intensity` field is
+mapped from blue through green to red, using the minimum and maximum finite intensities of points
+that pass the coordinate and camera-facing checks. A constant finite intensity maps to green;
+non-finite intensities map to black and do not affect the bounds. Without a color or intensity field,
+points are white. Points outside the projector image are skipped, the background is black, and the
+last point at a pixel wins. The normal projection status, stop, and capture behavior applies.
 
 ### projection/stop
 [std_srvs/srv/Trigger](https://docs.ros2.org/latest/api/std_srvs/srv/Trigger.html)

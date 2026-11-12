@@ -170,6 +170,148 @@ TEST(ProjectionPointCloud, ReadsRgbaIgnoringAlpha)
   EXPECT_EQ(result.colors[0].a, 255);
 }
 
+TEST(ProjectionPointCloud, MapsIntensityToRainbowForBothByteOrders)
+{
+  for (const bool big_endian : {false, true}) {
+    auto cloud = makeCloud(big_endian);
+    cloud.fields.back() = field("intensity", 16, PointField::FLOAT32);
+    writeValue(cloud, 16, 10.0F);
+    writeValue(cloud, cloud.point_step + 16, 20.0F);
+    writeValue(cloud, cloud.row_step + 16, 30.0F);
+    writeValue(cloud, cloud.row_step + cloud.point_step + 16, 1000.0F);
+    writeValue(cloud, cloud.row_step + cloud.point_step + 12, -1.0F);
+    const auto result = zivid_camera::prepareProjectionPoints(cloud, tf2::Transform::getIdentity());
+    ASSERT_EQ(result.colors.size(), 3U);
+    EXPECT_EQ(result.colors[0].b, 255);
+    EXPECT_EQ(result.colors[0].g, 0);
+    EXPECT_EQ(result.colors[0].r, 0);
+    EXPECT_EQ(result.colors[1].b, 0);
+    EXPECT_EQ(result.colors[1].g, 255);
+    EXPECT_EQ(result.colors[1].r, 0);
+    EXPECT_EQ(result.colors[2].b, 0);
+    EXPECT_EQ(result.colors[2].g, 0);
+    EXPECT_EQ(result.colors[2].r, 255);
+  }
+}
+
+TEST(ProjectionPointCloud, HandlesInvalidAndConstantIntensity)
+{
+  auto cloud = makeCloud(false);
+  cloud.fields.back() = field("intensity", 16, PointField::FLOAT64);
+  writeValue(cloud, 16, 42.0);
+  writeValue(cloud, cloud.point_step + 16, std::numeric_limits<double>::quiet_NaN());
+  writeValue(cloud, cloud.row_step + 16, std::numeric_limits<double>::infinity());
+  writeValue(cloud, cloud.row_step + cloud.point_step + 16, 42.0);
+  auto result = zivid_camera::prepareProjectionPoints(cloud, tf2::Transform::getIdentity());
+  ASSERT_EQ(result.colors.size(), 4U);
+  EXPECT_EQ(result.colors[0].g, 255);
+  EXPECT_EQ(result.colors[0].r, 0);
+  EXPECT_EQ(result.colors[0].b, 0);
+  EXPECT_EQ(result.colors[1].r, 0);
+  EXPECT_EQ(result.colors[1].g, 0);
+  EXPECT_EQ(result.colors[1].b, 0);
+  EXPECT_EQ(result.colors[2].g, 0);
+  EXPECT_EQ(result.colors[3].g, 255);
+
+  writeValue(cloud, 16, std::numeric_limits<double>::quiet_NaN());
+  writeValue(
+    cloud, cloud.row_step + cloud.point_step + 16, -std::numeric_limits<double>::infinity());
+  result = zivid_camera::prepareProjectionPoints(cloud, tf2::Transform::getIdentity());
+  for (const auto & color : result.colors) {
+    EXPECT_EQ(color.r, 0);
+    EXPECT_EQ(color.g, 0);
+    EXPECT_EQ(color.b, 0);
+  }
+}
+
+TEST(ProjectionPointCloud, SupportsIntegerIntensityAndPrefersRgb)
+{
+  auto cloud = makeCloud(true);
+  cloud.fields.back() = field("intensity", 16, PointField::UINT16);
+  writeValue(cloud, 16, uint16_t{100});
+  writeValue(cloud, cloud.point_step + 16, uint16_t{200});
+  writeValue(cloud, cloud.row_step + 16, uint16_t{200});
+  writeValue(cloud, cloud.row_step + cloud.point_step + 16, uint16_t{200});
+  auto result = zivid_camera::prepareProjectionPoints(cloud, tf2::Transform::getIdentity());
+  EXPECT_EQ(result.colors[0].b, 255);
+  EXPECT_EQ(result.colors[1].r, 255);
+
+  cloud.fields.push_back(field("rgb", 20, PointField::UINT32));
+  writeValue(cloud, 20, uint32_t{0x00123456});
+  cloud.fields[3].datatype = 0;
+  result = zivid_camera::prepareProjectionPoints(cloud, tf2::Transform::getIdentity());
+  EXPECT_EQ(result.colors[0].r, 0x12);
+  EXPECT_EQ(result.colors[0].g, 0x34);
+  EXPECT_EQ(result.colors[0].b, 0x56);
+
+  cloud.fields.pop_back();
+  EXPECT_THROW(
+    zivid_camera::prepareProjectionPoints(cloud, tf2::Transform::getIdentity()),
+    std::runtime_error);
+  cloud.fields[3] = field("intensity", 23, PointField::UINT16);
+  EXPECT_THROW(
+    zivid_camera::prepareProjectionPoints(cloud, tf2::Transform::getIdentity()),
+    std::runtime_error);
+  cloud.fields[3] = field("intensity", 16, PointField::FLOAT32);
+  cloud.fields[3].count = 2;
+  EXPECT_THROW(
+    zivid_camera::prepareProjectionPoints(cloud, tf2::Transform::getIdentity()),
+    std::runtime_error);
+}
+
+TEST(ProjectionPointCloud, SupportsAllIntensityDatatypes)
+{
+  for (const bool big_endian : {false, true}) {
+    for (const auto datatype :
+         {PointField::INT8, PointField::UINT8, PointField::INT16, PointField::UINT16,
+          PointField::INT32, PointField::UINT32, PointField::FLOAT32, PointField::FLOAT64}) {
+      auto cloud = makeCloud(big_endian);
+      cloud.fields.back() = field("intensity", 16, datatype);
+      const auto set_value = [&](size_t offset, int value) {
+        switch (datatype) {
+          case PointField::INT8:
+            writeValue(cloud, offset, static_cast<int8_t>(value));
+            break;
+          case PointField::UINT8:
+            writeValue(cloud, offset, static_cast<uint8_t>(value));
+            break;
+          case PointField::INT16:
+            writeValue(cloud, offset, static_cast<int16_t>(value));
+            break;
+          case PointField::UINT16:
+            writeValue(cloud, offset, static_cast<uint16_t>(value));
+            break;
+          case PointField::INT32:
+            writeValue(cloud, offset, static_cast<int32_t>(value));
+            break;
+          case PointField::UINT32:
+            writeValue(cloud, offset, static_cast<uint32_t>(value));
+            break;
+          case PointField::FLOAT32:
+            writeValue(cloud, offset, static_cast<float>(value));
+            break;
+          case PointField::FLOAT64:
+            writeValue(cloud, offset, static_cast<double>(value));
+            break;
+        }
+      };
+      set_value(16, 0);
+      set_value(cloud.point_step + 16, 1);
+      set_value(cloud.row_step + 16, 3);
+      set_value(cloud.row_step + cloud.point_step + 16, 4);
+      const auto result =
+        zivid_camera::prepareProjectionPoints(cloud, tf2::Transform::getIdentity());
+      ASSERT_EQ(result.colors.size(), 4U);
+      EXPECT_EQ(result.colors[0].b, 255);
+      EXPECT_EQ(result.colors[1].b, 255);
+      EXPECT_EQ(result.colors[1].g, 255);
+      EXPECT_EQ(result.colors[2].r, 255);
+      EXPECT_EQ(result.colors[2].g, 255);
+      EXPECT_EQ(result.colors[3].r, 255);
+    }
+  }
+}
+
 TEST(ProjectionPointCloud, DefaultsToWhiteAndFiltersInvalidPoints)
 {
   auto cloud = makeCloud(false);
