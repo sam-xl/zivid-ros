@@ -1,0 +1,7 @@
+# Points are in metres in the frame and at the time specified by the header.
+# x, y and z must be FLOAT32 or FLOAT64. Optional packed rgb or rgba fields
+# must be FLOAT32 or UINT32; clouds without a color field are projected white.
+sensor_msgs/PointCloud2 point_cloud
+---
+bool success
+string message

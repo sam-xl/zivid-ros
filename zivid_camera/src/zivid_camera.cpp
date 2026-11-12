@@ -424,7 +424,7 @@ ZividCamera::ZividCamera(
   hand_eye_calibration_controller_ = std::make_unique<HandEyeCalibrationController>(
     *this, *camera_, *settings_controller_, ControllerInterface{*this});
   projection_controller_ = std::make_unique<ProjectionController>(
-    *this, *camera_, *settings_2d_controller_, ControllerInterface{*this});
+    *this, *camera_, *settings_2d_controller_, ControllerInterface{*this}, frame_id_);
 
   RCLCPP_INFO(get_logger(), "Zivid camera driver is now ready!");
 }

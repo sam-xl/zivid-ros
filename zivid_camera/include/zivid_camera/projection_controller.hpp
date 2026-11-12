@@ -34,10 +34,13 @@
 #include <rclcpp/rclcpp.hpp>
 #include <std_srvs/srv/trigger.hpp>
 #include <string>
+#include <tf2_ros/buffer.hpp>
+#include <tf2_ros/transform_listener.hpp>
 #include <vector>
 #include <zivid_camera/controller_interface.hpp>
 #include <zivid_interfaces/srv/projection_resolution.hpp>
 #include <zivid_interfaces/srv/projection_start.hpp>
+#include <zivid_interfaces/srv/projection_start_point_cloud.hpp>
 #include <zivid_interfaces/srv/projection_status.hpp>
 
 namespace Zivid
@@ -62,7 +65,7 @@ public:
   ProjectionController(
     rclcpp::Node & zivid_camera_node, Zivid::Camera & camera,
     CaptureSettingsController<Zivid::Settings2D> & settings_2d_controller,
-    ControllerInterface controller_interface);
+    ControllerInterface controller_interface, const std::string & frame_id);
   ~ProjectionController();
 
 private:
@@ -78,6 +81,10 @@ private:
     const std::shared_ptr<rmw_request_id_t> request_header,
     const std::shared_ptr<zivid_interfaces::srv::ProjectionStart::Request> request,
     std::shared_ptr<zivid_interfaces::srv::ProjectionStart::Response> response);
+  void startPointCloudServiceHandler(
+    const std::shared_ptr<rmw_request_id_t> request_header,
+    const std::shared_ptr<zivid_interfaces::srv::ProjectionStartPointCloud::Request> request,
+    std::shared_ptr<zivid_interfaces::srv::ProjectionStartPointCloud::Response> response);
   void statusServiceHandler(
     const std::shared_ptr<rmw_request_id_t> request_header,
     const std::shared_ptr<zivid_interfaces::srv::ProjectionStatus::Request> request,
@@ -91,11 +98,16 @@ private:
   Zivid::Camera & camera_;
   CaptureSettingsController<Zivid::Settings2D> & settings_2d_controller_;
   ControllerInterface controller_interface_;
+  std::string frame_id_;
+  tf2_ros::Buffer tf_buffer_;
+  tf2_ros::TransformListener tf_listener_;
 
   std::unique_ptr<ProjectionState> state_;
   rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr capture_2d_service_;
   rclcpp::Service<zivid_interfaces::srv::ProjectionResolution>::SharedPtr resolution_service_;
   rclcpp::Service<zivid_interfaces::srv::ProjectionStart>::SharedPtr start_service_;
+  rclcpp::Service<zivid_interfaces::srv::ProjectionStartPointCloud>::SharedPtr
+    start_point_cloud_service_;
   rclcpp::Service<zivid_interfaces::srv::ProjectionStatus>::SharedPtr status_service_;
   rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr stop_service_;
 };

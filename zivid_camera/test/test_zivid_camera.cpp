@@ -49,6 +49,7 @@
 #include <zivid_interfaces/srv/is_connected.hpp>
 #include <zivid_interfaces/srv/projection_resolution.hpp>
 #include <zivid_interfaces/srv/projection_start.hpp>
+#include <zivid_interfaces/srv/projection_start_point_cloud.hpp>
 #include <zivid_interfaces/srv/projection_status.hpp>
 
 #ifdef _WIN32
@@ -1104,6 +1105,20 @@ TEST_F(ZividCATest, testCaptureAssistantInvalidAmbientLightFrequencyFails)
 
 TEST_F(TestWithFileCamera, testProjectionServices)
 {
+  using PointCloudService = zivid_interfaces::srv::ProjectionStartPointCloud;
+  auto point_cloud_request = std::make_shared<PointCloudService::Request>();
+  verifyTriggerResponseError(
+    doSrvRequest<PointCloudService>("projection/start_point_cloud", point_cloud_request),
+    "Point cloud frame_id must not be empty");
+  point_cloud_request->point_cloud.header.frame_id = "missing_frame";
+  verifyTriggerResponseError(
+    doSrvRequest<PointCloudService>("projection/start_point_cloud", point_cloud_request),
+    "missing_frame");
+  point_cloud_request->point_cloud.header.frame_id = "zivid_optical_frame";
+  verifyTriggerResponseError(
+    doSrvRequest<PointCloudService>("projection/start_point_cloud", point_cloud_request),
+    "Point cloud must contain x, y and z fields");
+
   auto capture_2d_response = doEmptySrvRequest<std_srvs::srv::Trigger>(projection_capture_2d);
   verifyTriggerResponseError(capture_2d_response, "Camera is not projecting");
 

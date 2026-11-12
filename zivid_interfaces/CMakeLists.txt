@@ -6,6 +6,7 @@ find_package(ament_cmake REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 
 rosidl_generate_interfaces(zivid_interfaces
                            "msg/DetectionResultCalibrationBoard.msg"
@@ -32,10 +33,12 @@ rosidl_generate_interfaces(zivid_interfaces
                            "srv/IsConnected.srv"
                            "srv/ProjectionResolution.srv"
                            "srv/ProjectionStart.srv"
+                           "srv/ProjectionStartPointCloud.srv"
                            "srv/ProjectionStatus.srv"
                            DEPENDENCIES
                            builtin_interfaces
-                           geometry_msgs)
+                           geometry_msgs
+                           sensor_msgs)
 
 ament_export_dependencies(rosidl_default_runtime)
 ament_package()

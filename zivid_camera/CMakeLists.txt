@@ -43,6 +43,7 @@ add_library(
   src/infield_correction_controller.cpp
   src/detector_controller.cpp
   src/projection_controller.cpp
+  src/projection_point_cloud.cpp
   src/utility.cpp
   src/zivid_camera.cpp
 )
@@ -115,6 +116,7 @@ if(BUILD_TESTING)
       test/test_detector.cpp
       test/test_hand_eye_calibration.cpp
       test/test_infield_correction.cpp
+      test/test_projection_point_cloud.cpp
       TIMEOUT 1000
   )
   ament_target_dependencies(${TEST_TARGET_NAME}

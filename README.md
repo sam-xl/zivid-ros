@@ -522,6 +522,21 @@ The specified file or data must match the resolution of the projector, which can
 If a capture is performed using any other service than [projection/capture_2d](#projectioncapture_2d), the projector
 will be turned off.
 
+### projection/start_point_cloud
+[zivid_interfaces/srv/ProjectionStartPointCloud.srv](./zivid_interfaces/srv/ProjectionStartPointCloud.srv)
+
+Projects a `sensor_msgs/PointCloud2`. The cloud must have scalar `x`, `y`, and `z` fields of type
+`FLOAT32` or `FLOAT64`, in metres. Its nonempty `header.frame_id` is transformed into the camera's
+configured `frame_id` at `header.stamp` (a zero timestamp uses the latest transform). The service
+waits up to one second for a transform; if unavailable it returns an error. Points with non-finite
+coordinates or behind the camera are ignored. A cloud with no remaining points is rejected.
+
+Each point maps to one projector pixel using the camera's calibrated SDK mapping. Packed `rgb` or
+`rgba` fields of type `FLOAT32` or `UINT32` supply the color (`rgba` takes precedence if both are
+present); otherwise points are white. Alpha is ignored. Points outside the projector image are
+skipped, the background is black, and the last point at a pixel wins. The normal projection status,
+stop, and capture behavior applies.
+
 ### projection/stop
 [std_srvs/srv/Trigger](https://docs.ros2.org/latest/api/std_srvs/srv/Trigger.html)
 

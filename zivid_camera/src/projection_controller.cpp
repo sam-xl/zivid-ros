@@ -33,6 +33,7 @@
 #include <zivid_camera/capture_settings_controller.hpp>
 #include <zivid_camera/controller_interface.hpp>
 #include <zivid_camera/projection_controller.hpp>
+#include <zivid_camera/projection_point_cloud.hpp>
 #include <zivid_camera/utility.hpp>
 #include <zivid_camera/zivid_camera.hpp>
 
@@ -79,17 +80,24 @@ namespace zivid_camera
 ProjectionController::ProjectionController(
   rclcpp::Node & zivid_camera_node, Zivid::Camera & camera,
   CaptureSettingsController<Zivid::Settings2D> & settings_2d_controller,
-  ControllerInterface controller_interface)
+  ControllerInterface controller_interface, const std::string & frame_id)
 : node_{zivid_camera_node},
   camera_{camera},
   settings_2d_controller_{settings_2d_controller},
-  controller_interface_{controller_interface}
+  controller_interface_{controller_interface},
+  frame_id_{frame_id},
+  tf_buffer_{node_.get_clock()},
+  tf_listener_{tf_buffer_, &node_, true}
 {
   using namespace std::placeholders;
 
   state_ = std::make_unique<ProjectionState>();
   start_service_ = node_.create_service<zivid_interfaces::srv::ProjectionStart>(
     "projection/start", std::bind(&ProjectionController::startServiceHandler, this, _1, _2, _3));
+  start_point_cloud_service_ =
+    node_.create_service<zivid_interfaces::srv::ProjectionStartPointCloud>(
+      "projection/start_point_cloud",
+      std::bind(&ProjectionController::startPointCloudServiceHandler, this, _1, _2, _3));
   stop_service_ = node_.create_service<std_srvs::srv::Trigger>(
     "projection/stop", std::bind(&ProjectionController::stopServiceHandler, this, _1, _2, _3));
   resolution_service_ = node_.create_service<zivid_interfaces::srv::ProjectionResolution>(
@@ -164,6 +172,26 @@ void ProjectionController::startServiceHandler(
       state_->projected_image = Zivid::Projection::showImage(camera_, image);
     },
     response, node_.get_logger(), "ProjectionStart");
+}
+
+void ProjectionController::startPointCloudServiceHandler(
+  const std::shared_ptr<rmw_request_id_t> /*request_header*/,
+  const std::shared_ptr<zivid_interfaces::srv::ProjectionStartPointCloud::Request> request,
+  std::shared_ptr<zivid_interfaces::srv::ProjectionStartPointCloud::Response> response)
+{
+  RCLCPP_INFO_STREAM(node_.get_logger(), __func__);
+  runFunctionAndCatchExceptionsForTriggerResponse(
+    [&]() {
+      const auto & cloud = request->point_cloud;
+      const auto camera_from_cloud = cameraFromCloud(tf_buffer_, frame_id_, cloud.header);
+      const auto points = prepareProjectionPoints(cloud, camera_from_cloud);
+      const auto pixels = Zivid::Projection::pixelsFrom3DPoints(camera_, points.points);
+      const auto image = renderProjectionPoints(
+        Zivid::Projection::projectorResolution(camera_), pixels, points.colors);
+      *state_ = {};
+      state_->projected_image = Zivid::Projection::showImage(camera_, image);
+    },
+    response, node_.get_logger(), "ProjectionStartPointCloud");
 }
 
 void ProjectionController::stopServiceHandler(
